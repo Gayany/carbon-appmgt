@@ -26,7 +26,7 @@ import java.util.Collections;
  * Provider's & system's view of WebApp
  */
 @SuppressWarnings("unused")
-public class WebApp extends MobileApp{
+public class WebApp extends App{
 
     private APIIdentifier id;
 

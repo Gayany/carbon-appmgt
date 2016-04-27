@@ -203,21 +203,8 @@ public class APPMappingUtil {
         }
 
         dto.setType(model.getType());
-        dto.setMarketType(model.getMarketType());
-        dto.setBundleversion(model.getBundleVersion());
-        dto.setCategory(model.getCategory());
         dto.setDisplayName(model.getDisplayName());
-        if (model.getScreenShots() != null) {
-            dto.setScreenshots(model.getScreenShots());
-        }
-        dto.setPlatform(model.getPlatform());
         dto.setCreatedtime(model.getDisplayName());
-        dto.setBanner(model.getBanner());
-        dto.setRecentChanges(model.getRecentChanges());
-
-        dto.setIcon(model.getThumbnail());
-        dto.setAppType(model.getAppType());
-        dto.setRecentChanges(model.getRecentChanges());
         dto.setCreatedtime(model.getCreatedTime());
 
 

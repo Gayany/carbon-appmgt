@@ -29,6 +29,7 @@ import org.json.JSONObject;
 import org.wso2.carbon.appmgt.api.APIProvider;
 import org.wso2.carbon.appmgt.api.AppManagementException;
 import org.wso2.carbon.appmgt.api.AppMgtResourceAlreadyExistsException;
+import org.wso2.carbon.appmgt.api.model.App;
 import org.wso2.carbon.appmgt.api.model.MobileApp;
 import org.wso2.carbon.appmgt.api.model.WebApp;
 import org.wso2.carbon.appmgt.impl.AppMConstants;
@@ -54,7 +55,9 @@ import javax.ws.rs.core.Response;
 import java.io.File;
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class AppsApiServiceImpl extends AppsApiService {
 
@@ -166,6 +169,7 @@ public class AppsApiServiceImpl extends AppsApiService {
         limit = limit != null ? limit : RestApiConstants.PAGINATION_LIMIT_DEFAULT;
         offset = offset != null ? offset : RestApiConstants.PAGINATION_OFFSET_DEFAULT;
         query = query == null ? "" : query;
+
         try {
             //check if a valid asset type is provided
             if (!appType.equalsIgnoreCase(AppMConstants.APP_TYPE) &&
@@ -176,37 +180,39 @@ public class AppsApiServiceImpl extends AppsApiService {
 
             APIProvider apiProvider = RestApiUtil.getLoggedInUserProvider();
 
-            //if query parameter is not specified, This will search by name
-            String searchType = AppMConstants.SEARCH_CONTENT_NAME;
-            String searchContent = "";
-            if (!StringUtils.isBlank(query)) {
-                String[] querySplit = query.split(":");
-                if (querySplit.length == 2 && StringUtils.isNotBlank(querySplit[0]) && StringUtils
-                        .isNotBlank(querySplit[1])) {
-                    searchType = querySplit[0];
-                    searchContent = querySplit[1];
-                } else if (querySplit.length == 1) {
-                    searchContent = query;
-                } else {
-                    RestApiUtil.handleBadRequest("Provided query parameter '" + query + "' is invalid", log);
-                }
-            }
+            List<App> result = apiProvider.searchApps(appType, getSearchTerms(query));
 
-            //We should send null as the provider, Otherwise searchAPIs will return all APIs of the provider
-            // instead of looking at type and query
-            allMatchedApps = apiProvider.searchAppsWithOptionalType(searchContent, searchType, null, appType);
-            if (allMatchedApps.isEmpty()) {
+
+            if (result.isEmpty()) {
                 String errorMessage = "No result found.";
                 return RestApiUtil.buildNotFoundException(errorMessage, null).getResponse();
             }
-            appListDTO = APPMappingUtil.fromAPIListToDTO(allMatchedApps, offset, limit);
-            APPMappingUtil.setPaginationParams(appListDTO, query, offset, limit, allMatchedApps.size());
+            appListDTO = APPMappingUtil.fromAPIListToDTO(result, offset, limit);
+            APPMappingUtil.setPaginationParams(appListDTO, query, offset, limit, result.size());
             return Response.ok().entity(appListDTO).build();
         } catch (AppManagementException e) {
             String errorMessage = "Error while retrieving Apps";
             RestApiUtil.handleInternalServerError(errorMessage, e, log);
         }
         return null;
+    }
+
+    private Map<String, String> getSearchTerms(String query) {
+
+        Map<String, String> searchTerms = new HashMap<String, String>();
+
+        if(query != null && !query.isEmpty()){
+
+            String[] termTokens = query.split(",");
+
+            String[] termElements = null;
+            for(String termToken : termTokens){
+                termElements = termToken.split(":");
+                searchTerms.put(termElements[0], termElements[1]);
+            }
+        }
+
+        return searchTerms;
     }
 
     @Override

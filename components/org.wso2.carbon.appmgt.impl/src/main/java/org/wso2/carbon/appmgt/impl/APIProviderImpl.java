@@ -1895,58 +1895,171 @@ class APIProviderImpl extends AbstractAPIManager implements APIProvider {
 
     }
 
+    /**
+     *
+     * Finds and returns the 'app' (e.g.webapp | mobile app) registry artifacts created by the given provider (user)
+     *
+     * @param providerId
+     * @param appType
+     * @return
+     * @throws AppManagementException
+     */
+    public List<GenericArtifact> getAppArtifactsByProvider(String providerId, String appType) throws AppManagementException {
+
+        List<GenericArtifact> appArtifacts = new ArrayList<GenericArtifact>();
+
+        try {
+            providerId = AppManagerUtil.replaceEmailDomain(providerId);
+            String providerPath = AppMConstants.API_ROOT_LOCATION + RegistryConstants.PATH_SEPARATOR +
+                    providerId;
+            GenericArtifactManager artifactManager = AppManagerUtil.getArtifactManager(registry, appType);
+            Association[] associations = registry.getAssociations(providerPath,
+                    AppMConstants.PROVIDER_ASSOCIATION);
+            for (Association association : associations) {
+                String apiPath = association.getDestinationPath();
+                Resource resource = registry.get(apiPath);
+                String artifactId = resource.getUUID();
+                if (artifactId != null) {
+                    GenericArtifact artifact = artifactManager.getGenericArtifact(artifactId);
+                    appArtifacts.add(artifact);
+                } else {
+                    throw new GovernanceException("artifact id is null of " + apiPath);
+                }
+            }
+
+        } catch (RegistryException e) {
+            handleException(String.format("Failed to get registry artifacts for the type '%s' and the provider '%s'", appType, providerId), e);
+        }
+
+        return appArtifacts;
+    }
+
 
     public List<WebApp> searchAppsWithOptionalType(String searchTerm, String searchType, String providerId,
-                                                   String appType)
+                                                String appType)
             throws AppManagementException {
-        List<WebApp> apiSortedList = new ArrayList<WebApp>();
+
+        List<WebApp> sortedApps = new ArrayList<WebApp>();
+
         String regex = "(?i)[\\w.|-]*" + searchTerm.trim() + "[\\w.|-]*";
 
         Pattern pattern;
         Matcher matcher;
 
         try {
-            List<WebApp> apiList;
+            List<GenericArtifact> artifacts = null;
+
             if (providerId != null) {
-                apiList = getAPIsByProvider(providerId, appType);
-            } else {
-                apiList = getAllAPIs(appType);
+                artifacts = getAppArtifactsByProvider(providerId, appType);
+            }else{
+                artifacts = getAppArtifacts(appType);
             }
-            if (apiList == null || apiList.size() == 0) {
-                return apiSortedList;
+
+            if (artifacts == null || artifacts.size() == 0) {
+                return sortedApps;
             }
+
             pattern = Pattern.compile(regex);
-            for (WebApp api : apiList) {
 
-                if (searchType.equalsIgnoreCase("Name")) {
-                    String api1 = api.getId().getApiName();
-                    matcher = pattern.matcher(api1);
-                } else if (searchType.equalsIgnoreCase("Provider")) {
-                    String api1 = api.getId().getProviderName();
-                    matcher = pattern.matcher(api1);
-                } else if (searchType.equalsIgnoreCase("Version")) {
-                    String api1 = api.getId().getVersion();
-                    matcher = pattern.matcher(api1);
-                } else if (searchType.equalsIgnoreCase("Context")) {
-                    String api1 = api.getContext();
-                    matcher = pattern.matcher(api1);
-                } else if (searchType.equalsIgnoreCase("id")) {
-                    String api1 = api.getUUID();
-                    matcher = pattern.matcher(api1);
-                } else {
-                    String apiName = api.getId().getApiName();
-                    matcher = pattern.matcher(apiName);
-                }
+            for (GenericArtifact artifact : artifacts) {
 
-                if (matcher.find()) {
-                    apiSortedList.add(api);
-                }
+                 artifact.getAttribute("name");
+
+//                if (searchType.equalsIgnoreCase("Name")) {
+//                    String api1 = api.getId().getApiName();
+//                    matcher = pattern.matcher(api1);
+//                } else if (searchType.equalsIgnoreCase("Provider")) {
+//                    String api1 = api.getId().getProviderName();
+//                    matcher = pattern.matcher(api1);
+//                } else if (searchType.equalsIgnoreCase("Version")) {
+//                    String api1 = api.getId().getVersion();
+//                    matcher = pattern.matcher(api1);
+//                } else if (searchType.equalsIgnoreCase("Context")) {
+//                    String api1 = api.getContext();
+//                    matcher = pattern.matcher(api1);
+//                } else if (searchType.equalsIgnoreCase("id")) {
+//                    String api1 = api.getUUID();
+//                    matcher = pattern.matcher(api1);
+//                } else {
+//                    String apiName = api.getId().getApiName();
+//                    matcher = pattern.matcher(apiName);
+//                }
+//
+//                if (matcher.find()) {
+//                    sortedApps.add(api);
+//                }
             }
         } catch (AppManagementException e) {
             handleException("Failed to search Apps with type", e);
+        } catch (GovernanceException e) {
+            e.printStackTrace();
         }
-        Collections.sort(apiSortedList, new APINameComparator());
-        return apiSortedList;
+        Collections.sort(sortedApps, new APINameComparator());
+        return sortedApps;
+    }
+
+    @Override
+    public List<App> searchApps(String appType, Map<String, String> searchTerms) throws AppManagementException {
+
+
+        List<App> apps = new ArrayList<App>();
+
+
+        List<GenericArtifact> appArtifacts = getAppArtifacts(appType);
+
+        for(GenericArtifact artifact : appArtifacts){
+            if(isSearchHit(artifact, searchTerms)){
+                apps.add(createApp(artifact, appType));
+            }
+        }
+
+        return apps;
+    }
+
+    private App createApp(GenericArtifact artifact, String appType) {
+
+        AppFactory appFactory = null;
+
+        if(AppMConstants.WEBAPP_ASSET_TYPE.equals(appType)){
+            appFactory = new WebAppFactory();
+        }else if(AppMConstants.MOBILE_ASSET_TYPE.equals(appType)){
+            appFactory = new MobileAppFactory();
+        }
+
+        return appFactory.createApp(artifact, registry);
+    }
+
+    private boolean isSearchHit(GenericArtifact artifact, Map<String, String> searchTerms) {
+
+        boolean isSearchHit = true;
+
+        for(Map.Entry<String, String> term : searchTerms.entrySet()){
+            try {
+                if(!artifact.getAttribute(getRxtAttributeName(term.getKey())).equals(term.getValue())){
+                    isSearchHit = false;
+                    break;
+                }
+            } catch (GovernanceException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return isSearchHit;
+    }
+
+    private String getRxtAttributeName(String searchKey) {
+
+        String rxtAttributeName = null;
+
+        if(searchKey.equalsIgnoreCase("NAME")){
+            rxtAttributeName = AppMConstants.API_OVERVIEW_NAME;
+        }else if(searchKey.equalsIgnoreCase("PROVIDER")){
+            rxtAttributeName = AppMConstants.API_OVERVIEW_PROVIDER;
+        }else if(searchKey.equalsIgnoreCase("VERSION")){
+            rxtAttributeName = AppMConstants.API_OVERVIEW_VERSION;
+        }
+
+        return rxtAttributeName;
     }
 
 

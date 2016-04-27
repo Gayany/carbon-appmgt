@@ -297,6 +297,43 @@ public abstract class AbstractAPIManager implements APIManager {
         return apiSortedList;
     }
 
+    /**
+     *
+     * Returns the 'app' (e.g. webapp, mobileapp) registry artifacts.
+     *
+     * @param appType
+     * @return
+     * @throws AppManagementException
+     */
+    public List<GenericArtifact> getAppArtifacts(String appType) throws AppManagementException {
+
+        List<GenericArtifact> appArtifacts = new ArrayList<GenericArtifact>();
+
+        boolean isTenantFlowStarted = false;
+        try {
+            if (tenantDomain != null && !MultitenantConstants.SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
+                isTenantFlowStarted = true;
+                PrivilegedCarbonContext.startTenantFlow();
+                PrivilegedCarbonContext.getThreadLocalCarbonContext().setTenantDomain(tenantDomain, true);
+            }
+            GenericArtifactManager artifactManager = AppManagerUtil.getArtifactManager(registry, appType);
+            GenericArtifact[] artifacts = artifactManager.getAllGenericArtifacts();
+            for (GenericArtifact artifact : artifacts) {
+                appArtifacts.add(artifact);
+            }
+
+        } catch (RegistryException e) {
+            handleException("Failed to get APIs from the registry", e);
+        } finally {
+            if (isTenantFlowStarted) {
+                PrivilegedCarbonContext.endTenantFlow();
+            }
+        }
+
+        return appArtifacts;
+    }
+
+
 
     public WebApp getAPI(APIIdentifier identifier) throws AppManagementException {
         String apiPath = AppManagerUtil.getAPIPath(identifier);

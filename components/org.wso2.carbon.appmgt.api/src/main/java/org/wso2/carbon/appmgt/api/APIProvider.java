@@ -451,6 +451,18 @@ public interface APIProvider extends APIManager {
                                                                                             AppManagementException;
 
     /**
+     *
+     * Searches and returns the apps for the given search terms.
+     *
+     * @param appType
+     * @param searchTerms
+     * @return
+     * @throws AppManagementException
+     */
+    public List<App> searchApps(String appType, Map<String, String> searchTerms) throws AppManagementException;
+
+
+    /**
      * Update the subscription status
      *
      * @param apiId WebApp Identifier
